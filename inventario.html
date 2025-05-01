@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inventario para Tienda</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
+  <header class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-800">Inventario para Tienda</h1>
+  </header>
+
+  <section class="w-full max-w-4xl bg-white rounded-lg shadow p-6">
+    <form id="product-form" class="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+      <div>
+        <label for="product-name" class="block text-gray-700 font-semibold mb-1">Nombre del Producto</label>
+        <input type="text" id="product-name" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ej. Manzanas" required />
+      </div>
+      <div>
+        <label for="product-quantity" class="block text-gray-700 font-semibold mb-1">Cantidad</label>
+        <input type="number" id="product-quantity" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" min="1" value="1" required />
+      </div>
+      <div>
+        <label for="product-price" class="block text-gray-700 font-semibold mb-1">Precio (Bs.)</label>
+        <input type="number" id="product-price" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" step="0.01" value="0.00" required />
+      </div>
+      <div>
+        <button type="submit" id="submit-button" class="w-full bg-blue-600 text-white font-semibold rounded px-4 py-2 hover:bg-blue-700 transition">Agregar Producto</button>
+        <button type="button" id="cancel-edit-button" class="hidden w-full mt-2 bg-gray-600 text-white font-semibold rounded px-4 py-2 hover:bg-gray-700 transition">Cancelar Edición</button>
+      </div>
+    </form>
+
+    <div class="mb-4">
+      <input type="text" id="search-input" placeholder="Buscar producto..." class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-blue-600 text-white">
+            <th class="px-4 py-2">Nombre</th>
+            <th class="px-4 py-2">Cantidad</th>
+            <th class="px-4 py-2">Precio (Bs.)</th>
+            <th class="px-4 py-2">Total (Bs.)</th>
+            <th class="px-4 py-2">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="product-list" class="bg-white">
+          <!-- Products will be dynamically inserted here -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <script>
+    const productForm = document.getElementById('product-form');
+    const productList = document.getElementById('product-list');
+    const searchInput = document.getElementById('search-input');
+    const submitButton = document.getElementById('submit-button');
+    const cancelEditButton = document.getElementById('cancel-edit-button');
+
+    let editIndex = -1;
+
+    function getProducts() {
+      const products = localStorage.getItem('products');
+      return products ? JSON.parse(products) : [];
+    }
+
+    function saveProducts(products) {
+      localStorage.setItem('products', JSON.stringify(products));
+    }
+
+    function renderProducts(filter = '') {
+      const products = getProducts();
+      productList.innerHTML = '';
+
+      const filteredProducts = products.filter(p =>
+        p.name.toLowerCase().includes(filter.toLowerCase())
+      );
+
+      if (filteredProducts.length === 0) {
+        productList.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">No hay productos</td></tr>';
+        return;
+      }
+
+      filteredProducts.forEach((product, index) => {
+        const total = (product.quantity * product.price).toFixed(2);
+        const tr = document.createElement('tr');
+        tr.className = 'border-b hover:bg-gray-50 transition';
+
+        tr.innerHTML = `
+          <td class="px-4 py-2">${product.name}</td>
+          <td class="px-4 py-2">
+            <input type="number" min="1" value="${product.quantity}" data-index="${index}" class="quantity-input w-20 border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </td>
+          <td class="px-4 py-2">Bs. ${product.price.toFixed(2)}</td>
+          <td class="px-4 py-2">Bs. ${total}</td>
+          <td class="px-4 py-2 space-x-2">
+            <button data-index="${index}" class="edit-btn text-blue-600 hover:text-blue-800 transition" title="Editar producto">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button data-index="${index}" class="delete-btn text-red-600 hover:text-red-800 transition" title="Eliminar producto">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </td>
+        `;
+
+        productList.appendChild(tr);
+      });
+
+      // Add event listeners for quantity inputs, edit buttons and delete buttons
+      document.querySelectorAll('.quantity-input').forEach(input => {
+        input.addEventListener('change', (e) => {
+          const idx = e.target.getAttribute('data-index');
+          let newQuantity = parseInt(e.target.value);
+          if (isNaN(newQuantity) || newQuantity < 1) {
+            newQuantity = 1;
+            e.target.value = 1;
+          }
+          const products = getProducts();
+          products[idx].quantity = newQuantity;
+          saveProducts(products);
+          renderProducts(searchInput.value);
+        });
+      });
+
+      document.querySelectorAll('.edit-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+          const idx = e.target.closest('button').getAttribute('data-index');
+          const products = getProducts();
+          const product = products[idx];
+          document.getElementById('product-name').value = product.name;
+          document.getElementById('product-quantity').value = product.quantity;
+          document.getElementById('product-price').value = product.price.toFixed(2);
+          editIndex = parseInt(idx);
+          submitButton.textContent = 'Guardar Cambios';
+          cancelEditButton.classList.remove('hidden');
+        });
+      });
+
+      document.querySelectorAll('.delete-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+          const idx = e.target.closest('button').getAttribute('data-index');
+          const products = getProducts();
+          products.splice(idx, 1);
+          saveProducts(products);
+          renderProducts(searchInput.value);
+          if (editIndex === parseInt(idx)) {
+            resetForm();
+          }
+        });
+      });
+    }
+
+    function resetForm() {
+      productForm.reset();
+      document.getElementById('product-quantity').value = 1;
+      document.getElementById('product-price').value = '0.00';
+      editIndex = -1;
+      submitButton.textContent = 'Agregar Producto';
+      cancelEditButton.classList.add('hidden');
+    }
+
+    cancelEditButton.addEventListener('click', () => {
+      resetForm();
+    });
+
+    productForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('product-name').value.trim();
+      const quantity = parseInt(document.getElementById('product-quantity').value);
+      const price = parseFloat(document.getElementById('product-price').value);
+
+      if (!name || isNaN(quantity) || quantity < 1 || isNaN(price) || price < 0) {
+        alert('Por favor, ingrese datos válidos.');
+        return;
+      }
+
+      const products = getProducts();
+
+      if (editIndex === -1) {
+        // Add new product
+        products.push({ name, quantity, price });
+      } else {
+        // Update existing product
+        products[editIndex] = { name, quantity, price };
+      }
+
+      saveProducts(products);
+      renderProducts(searchInput.value);
+      resetForm();
+    });
+
+    searchInput.addEventListener('input', (e) => {
+      renderProducts(e.target.value);
+    });
+
+    // Initial render
+    renderProducts();
+  </script>
+</body>
+</html>
